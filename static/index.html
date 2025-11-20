@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Distancia a Explosiones</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .upload-btn-small {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.3s;
+            margin-bottom: 15px;
+        }
+
+        .upload-btn-small:hover {
+            background: #5568d3;
+        }
+
+        .upload-btn-small svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .upload-btn {
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+
+        .upload-btn:hover {
+            background: #5568d3;
+        }
+
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .video-container {
+            display: flex;
+            flex-direction: column;
+        }
+
+        video {
+            width: 100%;
+            max-width: 100%;
+            border-radius: 8px;
+            background: #000;
+            aspect-ratio: 16/9;
+            object-fit: contain;
+        }
+
+        .timeline-container {
+            margin-top: 15px;
+            position: relative;
+            margin-top: 20px;
+            height: 120px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .timeline {
+            position: relative;
+            width: 100%;
+            height: 60px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .playhead {
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: #667eea;
+            z-index: 20;
+            pointer-events: none;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.8);
+        }
+
+        .playhead::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -4px;
+            width: 10px;
+            height: 10px;
+            background: #667eea;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.8);
+        }
+
+        .marker {
+            position: absolute;
+            top: 0;
+            width: 3px;
+            height: 100%;
+            cursor: move;
+            z-index: 15;
+        }
+
+        .marker.flash {
+            background: #ffeb3b;
+            box-shadow: 0 0 10px rgba(255, 235, 59, 0.8);
+            border-left: 2px solid #f57f17;
+            border-right: 2px solid #f57f17;
+        }
+
+        .marker.boom {
+            background: #f44336;
+            box-shadow: 0 0 10px rgba(244, 67, 54, 0.8);
+            border-left: 2px solid #c62828;
+            border-right: 2px solid #c62828;
+        }
+
+        .marker-label {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .marker.flash .marker-label {
+            color: #f57f17;
+        }
+
+        .marker.boom .marker-label {
+            color: #c62828;
+        }
+
+
+
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .params-section {
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+
+        .param-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .results {
+            padding: 20px;
+            background: #e8f5e9;
+            border-radius: 8px;
+            display: none;
+            flex: 1;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #c8e6c9;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .result-label {
+            font-weight: 600;
+            color: #2e7d32;
+        }
+
+        .result-value {
+            color: #1b5e20;
+            font-family: 'Courier New', monospace;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-radius: 50%;
+            border-top-color: #667eea;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            display: none;
+        }
+
+        .spinner-container.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .main-content.active {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Calculadora de Distancia a Explosiones</h1>
+
+        <input type="file" id="fileInput" accept="video/*" style="display: none;" />
+
+        <div class="main-content" id="mainContent">
+            <div class="video-container" id="videoContainer">
+                <button class="upload-btn-small" onclick="document.getElementById('fileInput').click()">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Cargar Video
+                </button>
+                <video id="videoPlayer" controls></video>
+                <div class="timeline-container">
+                    <div class="timeline" id="timeline">
+                        <div class="playhead" id="playhead"></div>
+                        <div class="marker flash" id="flashMarker">
+                            <span class="marker-label">FLASH</span>
+                        </div>
+                        <div class="marker boom" id="boomMarker">
+                            <span class="marker-label">BOOM</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-column">
+                <div class="results" id="results">
+                    <h3 style="margin-bottom: 15px; color: #2e7d32;">Resultados</h3>
+                    <div id="resultsContent"></div>
+                </div>
+
+                <div class="params-section">
+                    <h3 style="margin-bottom: 15px;">Parámetros</h3>
+                    <div class="param-group">
+                        <label for="temperature">Temperatura (°C) - Si no se especifica, se usa CNPT (20°C)</label>
+                        <input type="number" id="temperature" step="0.1" placeholder="20.0" />
+                    </div>
+                    <button class="upload-btn" id="recalculateBtn" style="width: 100%; margin-top: 10px;">
+                        Recalcular Distancia
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="spinner-container" id="spinnerContainer">
+            <div class="spinner"></div>
+            <p style="margin-top: 15px; color: #667eea; font-weight: 500;">Procesando video...</p>
+        </div>
+
+        <div id="messages"></div>
+    </div>
+
+    <script>
+        let video = document.getElementById('videoPlayer');
+        let flashMarker = document.getElementById('flashMarker');
+        let boomMarker = document.getElementById('boomMarker');
+        let timeline = document.getElementById('timeline');
+        let playhead = document.getElementById('playhead');
+        let currentResult = null;
+
+        // Drag and drop
+        const fileInput = document.getElementById('fileInput');
+        const videoContainer = document.getElementById('videoContainer');
+
+        // Drag and drop en el contenedor del video
+        videoContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            videoContainer.style.opacity = '0.7';
+        });
+
+        videoContainer.addEventListener('dragleave', () => {
+            videoContainer.style.opacity = '1';
+        });
+
+        videoContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            videoContainer.style.opacity = '1';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function showMessage(text, type = 'warning') {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = text;
+            messages.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+
+        async function handleFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const temperature = document.getElementById('temperature').value;
+            if (temperature) {
+                formData.append('temperature', parseFloat(temperature));
+            }
+
+            // Mostrar spinner
+            document.getElementById('spinnerContainer').classList.add('active');
+            
+            try {
+                const response = await fetch('/api/process', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Error procesando video');
+                }
+
+                const result = await response.json();
+                currentResult = result;
+
+                // Configurar video
+                video.src = URL.createObjectURL(file);
+                
+                // Esperar a que el video esté completamente cargado
+                await new Promise((resolve, reject) => {
+                    const onLoaded = () => {
+                        // Esperar a que la duración esté disponible
+                        if (video.duration && video.duration > 0) {
+                            // Configurar marcadores con la duración real del video
+                            setupMarkers(result, video.duration);
+                            
+                            // Configurar event listeners después de que el video esté listo
+                            setupVideoListeners();
+                            
+                            resolve();
+                        } else {
+                            // Si aún no hay duración, esperar un poco más
+                            setTimeout(() => {
+                                const actualDuration = video.duration || result.duration || 1;
+                                setupMarkers(result, actualDuration);
+                                setupVideoListeners();
+                                resolve();
+                            }, 100);
+                        }
+                    };
+                    
+                    video.addEventListener('loadedmetadata', onLoaded, { once: true });
+                    video.addEventListener('error', reject, { once: true });
+                    video.load();
+                });
+                
+                // Mostrar resultados
+                displayResults(result);
+
+            } catch (error) {
+                showMessage(error.message, 'error');
+            } finally {
+                // Ocultar spinner
+                document.getElementById('spinnerContainer').classList.remove('active');
+            }
+        }
+
+        function setupMarkers(result, videoDuration = null) {
+            // Usar la duración del video si está disponible, sino la del resultado
+            const duration = videoDuration || video.duration || result.duration || 1;
+            
+            // Validar que los tiempos estén dentro del rango del video
+            const t_flash = Math.max(0, Math.min(result.t_flash_s, duration));
+            const t_boom = Math.max(0, Math.min(result.t_boom_s, duration));
+            
+            // Calcular posiciones como porcentaje de la duración
+            const flashPos = (t_flash / duration) * 100;
+            const boomPos = (t_boom / duration) * 100;
+
+            flashMarker.style.left = `${flashPos}%`;
+            boomMarker.style.left = `${boomPos}%`;
+            
+            // Log para debugging
+            console.log('Marcadores configurados:', {
+                duration: duration,
+                t_flash_s: t_flash,
+                t_boom_s: t_boom,
+                flashPos: flashPos + '%',
+                boomPos: boomPos + '%'
+            });
+        }
+
+        function updateTimeDisplay() {
+            if (!video || !playhead) {
+                return;
+            }
+            
+            const duration = video.duration || 0;
+            const current = video.currentTime || 0;
+            
+            // Actualizar posición del cursor de reproducción
+            if (duration > 0) {
+                const percent = Math.max(0, Math.min(100, (current / duration) * 100));
+                playhead.style.left = `${percent}%`;
+            }
+        }
+
+        // Arrastrar marcadores
+        let draggingMarker = null;
+
+        flashMarker.addEventListener('mousedown', (e) => {
+            draggingMarker = flashMarker;
+            e.preventDefault();
+        });
+
+        boomMarker.addEventListener('mousedown', (e) => {
+            draggingMarker = boomMarker;
+            e.preventDefault();
+        });
+
+        timeline.addEventListener('mousemove', (e) => {
+            if (draggingMarker) {
+                const rect = timeline.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                draggingMarker.style.left = `${percent}%`;
+                updateTimeDisplay();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (draggingMarker) {
+                draggingMarker = null;
+                recalculate();
+            }
+        });
+
+        // Play/Pause
+        document.getElementById('playBtn').addEventListener('click', () => {
+            if (video.paused) {
+                video.play();
+            } else {
+                video.pause();
+            }
+        });
+
+        // Click en timeline para saltar
+        timeline.addEventListener('click', (e) => {
+            if (draggingMarker) return;
+            const rect = timeline.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percent = x / rect.width;
+            video.currentTime = percent * video.duration;
+        });
+
+        function setupVideoListeners() {
+            // Asegurarse de que los elementos existan
+            if (!video || !playhead) {
+                console.warn('setupVideoListeners: elementos no disponibles', { video: !!video, playhead: !!playhead });
+                return;
+            }
+            
+            // Remover listeners anteriores si existen
+            // Crear una copia de la función para poder removerla
+            const timeUpdateHandler = updateTimeDisplay;
+            video.removeEventListener('timeupdate', timeUpdateHandler);
+            
+            // Agregar nuevos listeners
+            video.addEventListener('timeupdate', timeUpdateHandler, { passive: true });
+            
+            // Inicializar posición del cursor inmediatamente y después de un pequeño delay
+            updateTimeDisplay();
+            setTimeout(() => {
+                updateTimeDisplay();
+            }, 100);
+        }
+
+        function getMarkerTime(marker) {
+            const duration = video.duration || currentResult?.duration || 1;
+            const percent = parseFloat(marker.style.left) / 100;
+            return percent * duration;
+        }
+
+
+        async function recalculate() {
+            if (!currentResult) return;
+
+            const t_flash_s = getMarkerTime(flashMarker);
+            const t_boom_s = getMarkerTime(boomMarker);
+            const temperature = document.getElementById('temperature').value;
+
+            const formData = new FormData();
+            formData.append('t_flash_s', t_flash_s);
+            formData.append('t_boom_s', t_boom_s);
+            formData.append('fps', currentResult.fps);
+            formData.append('sample_rate', currentResult.sample_rate);
+            formData.append('user_adjusted', 'true');
+            if (temperature) {
+                formData.append('temperature', parseFloat(temperature));
+            }
+
+            try {
+                const response = await fetch('/api/calculate', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Error calculando');
+                }
+
+                const result = await response.json();
+                currentResult = result;
+                displayResults(result);
+
+            } catch (error) {
+                showMessage(error.message, 'error');
+            }
+        }
+
+        document.getElementById('recalculateBtn').addEventListener('click', recalculate);
+
+        function displayResults(result) {
+            const resultsDiv = document.getElementById('results');
+            const content = document.getElementById('resultsContent');
+            
+            content.innerHTML = `
+                <div class="result-item">
+                    <span class="result-label">Tiempo Flash:</span>
+                    <span class="result-value">${result.t_flash_s.toFixed(6)} s</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Tiempo Boom:</span>
+                    <span class="result-value">${result.t_boom_s.toFixed(6)} s</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Delta T:</span>
+                    <span class="result-value">${result.delta_t_s.toFixed(6)} s</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Distancia:</span>
+                    <span class="result-value">${result.distance_m.toFixed(2)} m</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Error:</span>
+                    <span class="result-value">± ${result.error_m.toFixed(2)} m</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Velocidad del Sonido:</span>
+                    <span class="result-value">${result.speed_of_sound_m_s.toFixed(2)} m/s</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Ajustado por Usuario:</span>
+                    <span class="result-value">${result.user_adjusted ? 'Sí' : 'No'}</span>
+                </div>
+            `;
+
+            resultsDiv.classList.add('active');
+
+            // Validaciones y advertencias
+            if (result.warning) {
+                showMessage(result.warning, 'warning');
+            } else if (result.delta_t_s < 0.05 || result.delta_t_s > 10.0) {
+                showMessage(`Advertencia: delta_t (${result.delta_t_s.toFixed(3)}s) fuera del rango recomendado [0.05, 10.0]s`, 'warning');
+            }
+        }
+    </script>
+</body>
+</html>
+
