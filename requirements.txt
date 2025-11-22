@@ -1,11 +1,11 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-python-multipart==0.0.6
+python-multipart==0.0.18
 opencv-python==4.8.1.78
 numpy==1.24.3
 scipy==1.11.4
 librosa==0.10.1
 soundfile==0.12.1
-Pillow==10.1.0
+Pillow==10.3.0
 aiofiles==23.2.1
 
