@@ -51,7 +51,7 @@
             align-items: center;
             gap: 8px;
             transition: background 0.3s;
-            margin-bottom: 15px;
+            margin-bottom: 0;
         }
 
         .upload-btn-small:hover {
@@ -201,6 +201,49 @@
             border-radius: 8px;
         }
 
+        .assumptions-section {
+            padding: 20px;
+            background: #fff3e0;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .assumptions-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            padding: 5px 0;
+        }
+        
+        .assumptions-header:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+
+        .assumptions-header h3 {
+            margin: 0;
+        }
+
+        .assumptions-content {
+            display: none;
+        }
+
+        .assumptions-section:not(.collapsed) .assumptions-content {
+            display: block;
+        }
+
+        .collapse-icon {
+            transition: transform 0.3s ease;
+            font-size: 18px;
+            color: #666;
+        }
+
+        .assumptions-section.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
         .param-group {
             margin-bottom: 15px;
         }
@@ -224,12 +267,8 @@
             padding: 20px;
             background: #e8f5e9;
             border-radius: 8px;
-            display: none;
-            flex: 1;
-        }
-
-        .results.active {
             display: block;
+            flex: 1;
         }
 
         .result-item {
@@ -317,12 +356,20 @@
 
         <div class="main-content" id="mainContent">
             <div class="video-container" id="videoContainer">
-                <button class="upload-btn-small" onclick="document.getElementById('fileInput').click()">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    Cargar Video
-                </button>
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button class="upload-btn-small" onclick="document.getElementById('fileInput').click()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        Cargar Video
+                    </button>
+                    <button class="upload-btn-small" id="recalculateBtn">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Recalcular
+                    </button>
+                </div>
                 <video id="videoPlayer" controls></video>
                 <div class="timeline-container">
                     <div class="timeline" id="timeline">
@@ -340,18 +387,69 @@
             <div class="right-column">
                 <div class="results" id="results">
                     <h3 style="margin-bottom: 15px; color: #2e7d32;">Resultados</h3>
-                    <div id="resultsContent"></div>
+                    <div id="resultsContent">
+                        <div class="result-item">
+                            <span class="result-label">Tiempo Flash:</span>
+                            <span class="result-value">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Tiempo Boom:</span>
+                            <span class="result-value">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Delta T:</span>
+                            <span class="result-value">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Distancia:</span>
+                            <span class="result-value">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Error:</span>
+                            <span class="result-value">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Velocidad del Sonido:</span>
+                            <span class="result-value">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Nivel de Audio (dBFS):</span>
+                            <span class="result-value">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">SPL Estimado:</span>
+                            <span class="result-value">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Error SPL:</span>
+                            <span class="result-value">-</span>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="params-section">
-                    <h3 style="margin-bottom: 15px;">Parámetros</h3>
-                    <div class="param-group">
-                        <label for="temperature">Temperatura (°C) - Si no se especifica, se usa CNPT (20°C)</label>
-                        <input type="number" id="temperature" step="0.1" placeholder="20.0" />
+                <div class="assumptions-section collapsed" id="assumptionsSection">
+                    <div class="assumptions-header" id="assumptionsHeader">
+                        <h3>Suposiciones</h3>
+                        <span class="collapse-icon">▼</span>
                     </div>
-                    <button class="upload-btn" id="recalculateBtn" style="width: 100%; margin-top: 10px;">
-                        Recalcular Distancia
-                    </button>
+                    <div class="assumptions-content" id="assumptionsContent">
+                        <div class="param-group">
+                            <label for="temperature">Temperatura (°C)</label>
+                            <input type="number" id="temperature" step="0.1" value="20.0" />
+                        </div>
+                        <div class="param-group">
+                            <label for="base_spl_1m">SPL Base a 1m (dB)</label>
+                            <input type="number" id="base_spl_1m" step="0.1" value="160.0" />
+                        </div>
+                        <div class="param-group">
+                            <label for="dbfs_min">dBFS Mínimo para Normalización</label>
+                            <input type="number" id="dbfs_min" step="0.1" value="-60.0" />
+                        </div>
+                        <div class="param-group">
+                            <label for="amplitude_adjustment_range">Rango de Ajuste de Amplitud (±dB)</label>
+                            <input type="number" id="amplitude_adjustment_range" step="0.1" value="10.0" />
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -596,23 +694,37 @@
 
 
         async function recalculate() {
-            if (!currentResult) return;
-
-            const t_flash_s = getMarkerTime(flashMarker);
-            const t_boom_s = getMarkerTime(boomMarker);
-            const temperature = document.getElementById('temperature').value;
-
-            const formData = new FormData();
-            formData.append('t_flash_s', t_flash_s);
-            formData.append('t_boom_s', t_boom_s);
-            formData.append('fps', currentResult.fps);
-            formData.append('sample_rate', currentResult.sample_rate);
-            formData.append('user_adjusted', 'true');
-            if (temperature) {
-                formData.append('temperature', parseFloat(temperature));
+            if (!currentResult) {
+                showMessage('No hay resultados para recalcular. Por favor, carga un video primero.', 'warning');
+                return;
             }
 
+            // Mostrar spinner
+            document.getElementById('spinnerContainer').classList.add('active');
+
             try {
+                const t_flash_s = getMarkerTime(flashMarker);
+                const t_boom_s = getMarkerTime(boomMarker);
+                const temperature = parseFloat(document.getElementById('temperature').value) || 20.0;
+                const base_spl_1m = parseFloat(document.getElementById('base_spl_1m').value) || 160.0;
+                const dbfs_min = parseFloat(document.getElementById('dbfs_min').value) || -60.0;
+                const amplitude_adjustment_range = parseFloat(document.getElementById('amplitude_adjustment_range').value) || 10.0;
+
+                const formData = new FormData();
+                formData.append('t_flash_s', t_flash_s);
+                formData.append('t_boom_s', t_boom_s);
+                formData.append('fps', currentResult.fps);
+                formData.append('sample_rate', currentResult.sample_rate);
+                formData.append('temperature', temperature);
+                formData.append('base_spl_1m', base_spl_1m);
+                formData.append('dbfs_min', dbfs_min);
+                formData.append('amplitude_adjustment_range', amplitude_adjustment_range);
+                
+                // Preservar peak_dbfs si está disponible
+                if (currentResult.peak_dbfs !== undefined) {
+                    formData.append('peak_dbfs', currentResult.peak_dbfs);
+                }
+
                 const response = await fetch('/api/calculate', {
                     method: 'POST',
                     body: formData
@@ -629,55 +741,124 @@
 
             } catch (error) {
                 showMessage(error.message, 'error');
+            } finally {
+                // Ocultar spinner
+                document.getElementById('spinnerContainer').classList.remove('active');
             }
         }
 
-        document.getElementById('recalculateBtn').addEventListener('click', recalculate);
+        // Event listener para el botón de recalcular
+        document.addEventListener('DOMContentLoaded', function() {
+            const recalculateBtn = document.getElementById('recalculateBtn');
+            if (recalculateBtn) {
+                recalculateBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    recalculate();
+                });
+            }
+        });
+
+        // Toggle para colapsar/expandir la sección de suposiciones
+        function setupAssumptionsToggle() {
+            const assumptionsHeader = document.getElementById('assumptionsHeader');
+            const assumptionsSection = document.getElementById('assumptionsSection');
+            
+            if (assumptionsHeader && assumptionsSection) {
+                // Remover listeners anteriores si existen
+                const newHeader = assumptionsHeader.cloneNode(true);
+                assumptionsHeader.parentNode.replaceChild(newHeader, assumptionsHeader);
+                
+                const newAssumptionsHeader = document.getElementById('assumptionsHeader');
+                
+                newAssumptionsHeader.addEventListener('click', function(e) {
+                    // No colapsar si se hace clic en el botón o en los inputs dentro del content
+                    const content = document.getElementById('assumptionsContent');
+                    if (content && content.contains(e.target)) {
+                        return;
+                    }
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const section = document.getElementById('assumptionsSection');
+                    if (section) {
+                        section.classList.toggle('collapsed');
+                    }
+                });
+            }
+        }
+        
+        // Ejecutar cuando el DOM esté listo
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupAssumptionsToggle);
+        } else {
+            // Ejecutar después de un pequeño delay para asegurar que el DOM esté listo
+            setTimeout(setupAssumptionsToggle, 100);
+        }
 
         function displayResults(result) {
             const resultsDiv = document.getElementById('results');
             const content = document.getElementById('resultsContent');
             
+            if (!content) {
+                console.error('resultsContent element not found');
+                return;
+            }
+            
+            // Función helper para formatear valores con guiones si no están disponibles
+            const formatValue = (value, formatter, unit = '') => {
+                if (value === undefined || value === null || isNaN(value)) {
+                    return '-';
+                }
+                return formatter(value) + (unit ? ' ' + unit : '');
+            };
+            
             content.innerHTML = `
                 <div class="result-item">
                     <span class="result-label">Tiempo Flash:</span>
-                    <span class="result-value">${result.t_flash_s.toFixed(6)} s</span>
+                    <span class="result-value">${formatValue(result.t_flash_s, (v) => v.toFixed(6), 's')}</span>
                 </div>
                 <div class="result-item">
                     <span class="result-label">Tiempo Boom:</span>
-                    <span class="result-value">${result.t_boom_s.toFixed(6)} s</span>
+                    <span class="result-value">${formatValue(result.t_boom_s, (v) => v.toFixed(6), 's')}</span>
                 </div>
                 <div class="result-item">
                     <span class="result-label">Delta T:</span>
-                    <span class="result-value">${result.delta_t_s.toFixed(6)} s</span>
+                    <span class="result-value">${formatValue(result.delta_t_s, (v) => v.toFixed(6), 's')}</span>
                 </div>
                 <div class="result-item">
                     <span class="result-label">Distancia:</span>
-                    <span class="result-value">${result.distance_m.toFixed(2)} m</span>
+                    <span class="result-value">${formatValue(result.distance_m, (v) => v.toFixed(2), 'm')}</span>
                 </div>
                 <div class="result-item">
                     <span class="result-label">Error:</span>
-                    <span class="result-value">± ${result.error_m.toFixed(2)} m</span>
+                    <span class="result-value">${result.error_m !== undefined && result.error_m !== null && !isNaN(result.error_m) ? '± ' + result.error_m.toFixed(2) + ' m' : '-'}</span>
                 </div>
                 <div class="result-item">
                     <span class="result-label">Velocidad del Sonido:</span>
-                    <span class="result-value">${result.speed_of_sound_m_s.toFixed(2)} m/s</span>
+                    <span class="result-value">${formatValue(result.speed_of_sound_m_s, (v) => v.toFixed(2), 'm/s')}</span>
                 </div>
                 <div class="result-item">
-                    <span class="result-label">Ajustado por Usuario:</span>
-                    <span class="result-value">${result.user_adjusted ? 'Sí' : 'No'}</span>
+                    <span class="result-label">Nivel de Audio (dBFS):</span>
+                    <span class="result-value">${formatValue(result.peak_dbfs, (v) => v.toFixed(2), 'dBFS')}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">SPL Estimado:</span>
+                    <span class="result-value">${formatValue(result.estimated_spl_db, (v) => v.toFixed(1), 'dB SPL')}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Error SPL:</span>
+                    <span class="result-value">${formatValue(result.estimated_spl_error_db, (v) => v.toFixed(1), 'dB')}</span>
                 </div>
             `;
 
-            resultsDiv.classList.add('active');
-
-            // Validaciones y advertencias
-            if (result.warning) {
+            // Validaciones y advertencias solo si hay datos válidos
+            if (result && result.warning) {
                 showMessage(result.warning, 'warning');
-            } else if (result.delta_t_s < 0.05 || result.delta_t_s > 10.0) {
+            } else if (result && result.delta_t_s !== undefined && !isNaN(result.delta_t_s) && (result.delta_t_s < 0.05 || result.delta_t_s > 10.0)) {
                 showMessage(`Advertencia: delta_t (${result.delta_t_s.toFixed(3)}s) fuera del rango recomendado [0.05, 10.0]s`, 'warning');
             }
         }
+        
     </script>
 </body>
 </html>

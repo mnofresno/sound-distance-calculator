@@ -132,12 +132,12 @@ def detect_flash(video_path: str, fps: float) -> tuple[float, float]:
     return float(t_flash_s), float(sigma_flash_detect)
 
 
-def detect_boom(audio_path: str, sample_rate: Optional[int] = None) -> tuple[float, float, int]:
+def detect_boom(audio_path: str, sample_rate: Optional[int] = None) -> tuple[float, float, int, float]:
     """
     Detecta el instante del sonido analizando la envolvente del audio.
     
     Returns:
-        (t_boom_s, confidence, actual_sample_rate): tiempo en segundos, estimación de error y sample rate real
+        (t_boom_s, confidence, actual_sample_rate, peak_dbfs): tiempo en segundos, estimación de error, sample rate real y dBFS del pico
     """
     # Cargar audio
     audio, sr = librosa.load(audio_path, sr=None, mono=True)
@@ -173,12 +173,20 @@ def detect_boom(audio_path: str, sample_rate: Optional[int] = None) -> tuple[flo
     # Buscar el PRIMER aumento significativo (inicio del boom)
     increases_above_threshold = np.where(positive_diff > threshold)[0]
     
+    # Calcular dBFS del pico máximo del audio
+    max_amplitude = np.max(np.abs(audio))
+    peak_dbfs = -np.inf
+    
     if len(increases_above_threshold) == 0:
         # Si no hay aumentos claros, usar el máximo de la envolvente
         max_idx = np.argmax(envelope)
         t_boom_s = max_idx / actual_sample_rate
         logger.warning(f"No se encontraron aumentos claros, usando máximo de envolvente en {t_boom_s:.3f}s")
         sigma_boom_detect = 0.1  # 100ms de error estimado
+        
+        # Calcular dBFS del máximo
+        if max_amplitude > 0:
+            peak_dbfs = 20 * np.log10(max_amplitude)
     else:
         # PRIMER aumento que supera el umbral (inicio del boom)
         first_increase_idx = increases_above_threshold[0]
@@ -192,8 +200,23 @@ def detect_boom(audio_path: str, sample_rate: Optional[int] = None) -> tuple[flo
         # Error inversamente proporcional al SNR
         base_error = 1 / actual_sample_rate  # Error mínimo (1 muestra)
         sigma_boom_detect = base_error * max(1, 5 / snr)
+        
+        # Calcular dBFS del pico detectado
+        # Usar la amplitud del audio en el momento del pico
+        peak_audio_idx = min(first_increase_idx, len(audio) - 1)
+        peak_amplitude = np.abs(audio[peak_audio_idx])
+        if max_amplitude > 0:
+            # dBFS = 20 * log10(amplitud / amplitud_maxima_posible)
+            # En audio digital normalizado, la amplitud máxima es 1.0
+            normalized_peak = peak_amplitude / max_amplitude if max_amplitude > 0 else 0
+            if normalized_peak > 0:
+                peak_dbfs = 20 * np.log10(normalized_peak)
+            else:
+                peak_dbfs = -np.inf
+        else:
+            peak_dbfs = -np.inf
     
-    return float(t_boom_s), float(sigma_boom_detect), int(actual_sample_rate)
+    return float(t_boom_s), float(sigma_boom_detect), int(actual_sample_rate), float(peak_dbfs)
 
 
 def calculate_distance(
@@ -205,7 +228,11 @@ def calculate_distance(
     sigma_flash_detect: float = 0.0,
     sigma_boom_detect: float = 0.0,
     user_adjusted: bool = False,
-    strict_validation: bool = True
+    strict_validation: bool = True,
+    peak_dbfs: Optional[float] = None,
+    base_spl_1m: float = 160.0,
+    dbfs_min: float = -60.0,
+    amplitude_adjustment_range: float = 10.0
 ) -> dict:
     """
     Calcula distancia y propaga errores.
@@ -256,7 +283,7 @@ def calculate_distance(
         else:
             confidence = "low"
     
-    return {
+    result = {
         "t_flash_s": round(t_flash_s, 6),
         "t_boom_s": round(t_boom_s, 6),
         "delta_t_s": round(delta_t, 6),
@@ -268,6 +295,64 @@ def calculate_distance(
         "auto_detection_confidence": confidence,
         "user_adjusted": user_adjusted
     }
+    
+    # Calcular dB percibidos si tenemos el peak_dbfs
+    if peak_dbfs is not None and not np.isinf(peak_dbfs):
+        result["peak_dbfs"] = round(peak_dbfs, 2)
+        
+        # Estimación de dB SPL (Sound Pressure Level) percibido
+        # Nota: Esto es una estimación aproximada sin calibración del micrófono
+        # Para una explosión, la presión sonora disminuye con la distancia según:
+        # SPL ≈ SPL_1m - 20*log10(distancia_m)
+        
+        if distance_m > 0:
+            # Estimación basada en explosiones típicas
+            # Una explosión pequeña (100g TNT equivalente) a 1m produce ~160 dB SPL
+            # A distancia d: SPL ≈ 160 - 20*log10(d/1)
+            
+            # Factor de corrección basado en dBFS
+            # Si dBFS está cerca de 0, el sonido está cerca del máximo del rango
+            # Si dBFS está muy negativo, el sonido es más débil
+            # Normalizamos dBFS entre -60 y 0 para obtener un factor entre 0 y 1
+            dbfs_normalized = (peak_dbfs - dbfs_min) / abs(dbfs_min)  # Normalizar según dbfs_min
+            dbfs_normalized = max(0.1, min(1.0, dbfs_normalized))  # Limitar entre 0.1 y 1.0
+            
+            # Estimación de SPL percibido
+            # Base: explosión pequeña a distancia conocida
+            distance_attenuation = 20 * np.log10(max(1, distance_m))  # Atenuación por distancia
+            # Ajuste por amplitud relativa del audio (si está cerca del máximo, es más fuerte)
+            amplitude_adjustment = (dbfs_normalized - 0.5) * amplitude_adjustment_range  # Ajuste según rango especificado
+            
+            estimated_spl = base_spl_1m - distance_attenuation + amplitude_adjustment
+            
+            # Calcular error del SPL estimado
+            # El error proviene principalmente de:
+            # 1. Incertidumbre en la distancia (propagación del error de distancia)
+            # 2. Incertidumbre en la estimación del SPL base
+            # 3. Incertidumbre en la normalización dBFS
+            
+            # Error por incertidumbre en distancia: d(SPL)/d(distance) = -20/(distance * ln(10))
+            # Propagación: sigma_spl_distance = |d(SPL)/d(distance)| * sigma_distance
+            if distance_m > 0 and sigma_d > 0:
+                sigma_spl_distance = abs(-20 / (distance_m * np.log(10))) * sigma_d
+            else:
+                sigma_spl_distance = 0
+            
+            # Error estimado en SPL base (asumiendo ±5 dB de incertidumbre)
+            sigma_spl_base = 5.0
+            
+            # Error en normalización dBFS (asumiendo ±2 dB)
+            sigma_spl_dbfs = 2.0
+            
+            # Propagación total del error
+            estimated_spl_error = np.sqrt(sigma_spl_distance ** 2 + sigma_spl_base ** 2 + sigma_spl_dbfs ** 2)
+            
+            result["estimated_spl_db"] = round(estimated_spl, 1)
+            result["estimated_spl_error_db"] = round(estimated_spl_error, 1)
+        else:
+            result["estimated_spl_db"] = None
+    
+    return result
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -368,8 +453,8 @@ async def process_video(
         
         try:
             logger.info("Iniciando detección de boom...")
-            t_boom_s, sigma_boom_detect, actual_sample_rate = detect_boom(audio_path)
-            logger.info(f"Boom detectado en: {t_boom_s:.6f}s (error: {sigma_boom_detect:.6f}s), sample_rate: {actual_sample_rate}")
+            t_boom_s, sigma_boom_detect, actual_sample_rate, peak_dbfs = detect_boom(audio_path)
+            logger.info(f"Boom detectado en: {t_boom_s:.6f}s (error: {sigma_boom_detect:.6f}s), sample_rate: {actual_sample_rate}, dBFS: {peak_dbfs:.2f}")
         except Exception as e:
             logger.error(f"Error detectando boom: {str(e)}", exc_info=True)
             raise HTTPException(status_code=400, detail=f"Error detectando boom: {str(e)}")
@@ -416,7 +501,8 @@ async def process_video(
                 sigma_flash_detect=sigma_flash_detect,
                 sigma_boom_detect=sigma_boom_detect,
                 user_adjusted=False,
-                strict_validation=False  # Permitir cálculos fuera de rango con advertencia
+                strict_validation=False,  # Permitir cálculos fuera de rango con advertencia
+                peak_dbfs=peak_dbfs
             )
         except ValueError as e:
             # Si el error es por delta_t fuera de rango, calcular de todos modos
@@ -447,6 +533,17 @@ async def process_video(
                     "user_adjusted": False,
                     "warning": f"delta_t ({delta_t:.3f}s) fuera del rango recomendado [0.05, 10.0]s"
                 }
+                
+                # Agregar dB si está disponible
+                if peak_dbfs is not None and not np.isinf(peak_dbfs):
+                    result["peak_dbfs"] = round(peak_dbfs, 2)
+                    if distance_m > 0:
+                        dbfs_normalized = max(0.1, min(1.0, (peak_dbfs + 60) / 60))
+                        base_spl_1m = 160
+                        distance_attenuation = 20 * np.log10(max(1, distance_m))
+                        amplitude_adjustment = (dbfs_normalized - 0.5) * 20
+                        estimated_spl = base_spl_1m - distance_attenuation + amplitude_adjustment
+                        result["estimated_spl_db"] = round(estimated_spl, 1)
             else:
                 raise HTTPException(status_code=400, detail=str(e))
         
@@ -482,7 +579,11 @@ async def calculate(
     fps: float = Form(...),
     sample_rate: int = Form(...),
     temperature: Optional[float] = Form(None),
-    user_adjusted: bool = Form(True)
+    user_adjusted: bool = Form(True),
+    peak_dbfs: Optional[float] = Form(None),
+    base_spl_1m: Optional[float] = Form(None),
+    dbfs_min: Optional[float] = Form(None),
+    amplitude_adjustment_range: Optional[float] = Form(None)
 ):
     """
     Recalcula distancia con valores ajustados por el usuario.
@@ -491,13 +592,25 @@ async def calculate(
         if temperature is None:
             temperature = 20.0  # CNPT
         
+        # Valores por defecto para suposiciones
+        base_spl = base_spl_1m if base_spl_1m is not None else 160.0
+        dbfs_min_val = dbfs_min if dbfs_min is not None else -60.0
+        amplitude_range = amplitude_adjustment_range if amplitude_adjustment_range is not None else 10.0
+        
         result = calculate_distance(
             t_flash_s=t_flash_s,
             t_boom_s=t_boom_s,
             fps=fps,
             sample_rate=sample_rate,
             temperature_celsius=temperature,
-            user_adjusted=user_adjusted
+            sigma_flash_detect=0.0,  # Usuario ajustó manualmente
+            sigma_boom_detect=0.0,  # Usuario ajustó manualmente
+            user_adjusted=user_adjusted,
+            strict_validation=False,
+            peak_dbfs=peak_dbfs,
+            base_spl_1m=base_spl,
+            dbfs_min=dbfs_min_val,
+            amplitude_adjustment_range=amplitude_range
         )
         
         return JSONResponse(content=result)
